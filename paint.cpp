@@ -19,7 +19,13 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <vector>
+#include <stack>
+#include <iostream>
+#include <sstream>
+#include <iomanip>
+#include <unistd.h>
 #include "glut_text.h"
 
 #define PB push_back
@@ -28,8 +34,15 @@
 using namespace std;
 
 #define ESC 27
+#define UP 101
+#define DOWN 103
+#define LEFT 100
+#define RIGHT 102
+#define PLUS 65
+#define MINUS 45
+#define ENTER 13
 
-enum form_type { LIN = 1, TRI, RECT, POL, CIR };
+enum form_type { LIN = 1, TRI, RECT, POL, CIR, FILL };
 
 bool click1 = false;
 int m_x, m_y, x_1, y_1, x_2, y_2;
@@ -37,8 +50,15 @@ int modo = LIN;
 int width = 512, height = 512;
 
 struct form {
-    form_type type = LIN;
+private:
+    bool centroidCalculated = false;
+    pair<int, int> centroid = { 0, 0 };
+public:
+    form_type type;
     vector<pair<int, int>> vertices;
+
+    form() : type(LIN) {}
+    form(form_type _type) : type(_type) {}
 
     void addVertex(int x, int y) {
         vertices.PB({ x, y });
@@ -47,6 +67,7 @@ struct form {
     void addVertex(pair<int, int> vertex) {
         vertices.PB(vertex);
     }
+
 };
 
 vector<form> forms;
@@ -80,6 +101,7 @@ void reshape(int w, int h);
 void display(void);
 void menu_popup(int value);
 void keyboard(unsigned char key, int x, int y);
+void keyboardSpecial(int key, int x, int y);
 void mouse(int button, int state, int x, int y);
 void mousePassiveMotion(int x, int y);
 void drawPixel(int x, int y);
@@ -96,6 +118,7 @@ int main(int argc, char** argv) {
     init();
     glutReshapeFunc(reshape);
     glutKeyboardFunc(keyboard);
+    glutSpecialFunc(keyboardSpecial);
     glutMouseFunc(mouse);
     glutPassiveMotionFunc(mousePassiveMotion);
     glutDisplayFunc(display);
@@ -105,6 +128,7 @@ int main(int argc, char** argv) {
     glutAddMenuEntry("Retangulo", RECT);
     glutAddMenuEntry("Triangulo", TRI);
     glutAddMenuEntry("Poligono", POL);
+    glutAddMenuEntry("Preencher", FILL);
     glutAddMenuEntry("Sair", 0);
     glutAttachMenu(GLUT_RIGHT_BUTTON);
     
@@ -131,33 +155,129 @@ void reshape(int w, int h) {
 
 }
 
+double sx = 1, sy = 1;
+
 void display(void) {
     glClear(GL_COLOR_BUFFER_BIT);
     glColor3f (0.0, 0.0, 0.0);
     drawFormas();
-    draw_text_stroke(0, 0, "(" + to_string(m_x) + "," + to_string(m_y) + ")", 0.2);
+    stringstream ss;
+    ss << fixed << setprecision(2) << " Sx: " << sx << " Sy: " << sy;
+    draw_text_stroke(0, 0, "(" + to_string(m_x) + "," + to_string(m_y) +
+        ")" + ss.str(), 0.2);
     glutSwapBuffers();
 }
 
 void menu_popup(int value) {
-    if (value == 0) exit(EXIT_SUCCESS);
+    if(value == 0) exit(EXIT_SUCCESS);
     modo = value;
 }
 
 void keyboard(unsigned char key, int x, int y) {
-    switch (key) {
+    cout << (int) key << " (ASCII)"<< endl;
+    switch(key) {
         case ESC: exit(EXIT_SUCCESS); break;
+
+        case 'O':
+        sx += 0.01;
+        break;
+
+        case 'o':
+        sx -= 0.01;
+        break;
+
+        case 'P':
+        sy += 0.01;
+        break;
+
+        case 'p':
+        sy -= 0.01;
+        break;
+
+        case ENTER:
+
+        form &lastForm = forms[forms.size() - 1];
+        for(auto &i: lastForm.vertices) {
+            i.first *= sx;
+            i.second *= sy;
+        }
+
+        break;
     }
+    glutPostRedisplay();
+}
+
+void keyboardSpecial(int key, int x, int y) {
+    cout << key << " (Unicode)" << endl;
+    if(forms.size() == 0) return;
+    form &lastForm = forms[forms.size() - 1];
+
+    switch(key) {
+        case UP:
+        for(auto &i: lastForm.vertices) i.second += 4;
+        break;
+
+        case DOWN:
+        for(auto &i: lastForm.vertices) i.second -= 4;
+        break;
+
+        case LEFT:
+        for(auto &i: lastForm.vertices) i.first -= 4;
+        break;
+
+        case RIGHT:
+        for(auto &i: lastForm.vertices) i.first += 4;
+    }
+
+    glutPostRedisplay();
 }
 
 /*
  * Controle dos botoes do mouse
  */
+
+vector<pair<int, int>> explodeRam;
+
 void mouse(int button, int state, int x, int y) {
     switch(button) {
         case GLUT_LEFT_BUTTON:
         if(state == GLUT_DOWN) {
-            if(modo == POL) {
+            if(modo == FILL) {
+                cout << x << " " << y << endl;
+                GLubyte initial[3];
+                glReadPixels(x, height - y - 1, 1, 1, GL_RGB, GL_UNSIGNED_BYTE, initial);
+                stack<pair<int, int>> q;
+                q.push({ x, height - y - 1 });
+                vector<int> dx = { 0,  0, -1, 1},
+                            dy = { 1, -1,  0, 0};
+                vector<vector<bool>> visited(width, vector<bool>(height, false));
+                while(!q.empty()) {
+                    auto u = q.top(); q.pop();
+                    // cout << "Painting " << u.first << " " << u.second << " " << q.size() << endl;
+                    visited[u.first][u.second] = true;
+
+                    // try changing this to auxiliary matrix
+                    GLubyte pixel[3];
+                    glReadPixels(u.first, u.second, 1, 1, GL_RGB, GL_UNSIGNED_BYTE, pixel);
+
+                    if(pixel[0] == initial[0] && pixel[1] == initial[1] && pixel[2] == initial[2])
+                        explodeRam.PB({ u.first, u.second });
+                    else {
+                        cout << (int) pixel[0] << " " << (int) pixel[1] << " " << (int) pixel[2] << endl;
+                        continue;
+                    }
+
+                    for(int i = 0; i < dx.size(); i++) {
+                        int xx = u.first + dx[i], yy = u.second + dy[i];
+                        if(xx < 512 && xx >= 0 && yy < 512 && yy >= 0) {
+                            if(visited[xx][yy]) continue;
+                            q.push({ xx, yy });
+                            visited[xx][yy] = true;
+                        }
+                    }
+                }
+                glutPostRedisplay();
+            } else if(modo == POL || modo == TRI) {
                 if(openPolygon != nullptr) {
 
                     auto firstVertex = openPolygon->vertices[0];
@@ -174,6 +294,12 @@ void mouse(int button, int state, int x, int y) {
                         openPolygon->addVertex({
                             x_1, y_1
                         });
+                        if(modo == TRI) {
+                            if(openPolygon->vertices.size() == 3) {
+                                openPolygon = nullptr;
+                                click1 = false;
+                            }
+                        }
                     }
                 } else {
                     click1 = true;
@@ -253,6 +379,10 @@ void drawFormas() {
             default:
             bresenham(x_1, y_1, m_x, m_y);
         }
+    }
+
+    for(auto i: explodeRam) {
+        drawPixel(i.first, i.second);
     }
     
     //Percorre a lista de formas geometricas para desenhar
