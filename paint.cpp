@@ -1,7 +1,7 @@
 /*
  * Computacao Grafica
  * Paint2D
- * Autor: Prof. Laurindo de Sousa Britto Neto
+ * Autor: Ryan Ferreira de Sousa
  */
 
 // Bibliotecas utilizadas pelo OpenGL
@@ -26,6 +26,8 @@
 #include <sstream>
 #include <iomanip>
 #include <unistd.h>
+#include <array>
+#include <set>
 #include "glut_text.h"
 
 #define PB push_back
@@ -48,6 +50,7 @@ bool click1 = false;
 int m_x, m_y, x_1, y_1, x_2, y_2;
 int modo = LIN;
 int width = 512, height = 512;
+vector<vector<array<GLubyte, 3>>> aux(width, vector<array<GLubyte, 3>>(height, { 0xFF, 0xFF, 0xFF }));
 
 struct form {
 private:
@@ -111,7 +114,7 @@ void bresenham(pair<int, int> p1, pair<int, int> p2);
 
 int main(int argc, char** argv) {
     glutInit(&argc, argv);
-    glutInitDisplayMode (GLUT_DOUBLE | GLUT_RGB);
+    glutInitDisplayMode (GLUT_SINGLE | GLUT_RGB);
     glutInitWindowSize (width, height);
     glutInitWindowPosition (100, 100);
     glutCreateWindow ("Computacao Grafica: Paint");
@@ -148,7 +151,7 @@ void reshape(int w, int h) {
 	
 	width = w;
 	height = h;
-    glOrtho (0, w, 0, h, -1 ,1);  
+    glOrtho (0, w, h, 0, -1, 1);  
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
@@ -163,7 +166,8 @@ void display(void) {
     drawFormas();
     stringstream ss;
     ss << fixed << setprecision(2) << " Sx: " << sx << " Sy: " << sy;
-    draw_text_stroke(0, 0, "(" + to_string(m_x) + "," + to_string(m_y) +
+    glColor3ub(0, 0, 0);
+    draw_text_stroke(0, height, "(" + to_string(m_x) + "," + to_string(m_y) +
         ")" + ss.str(), 0.2);
     glutSwapBuffers();
 }
@@ -236,7 +240,7 @@ void keyboardSpecial(int key, int x, int y) {
  * Controle dos botoes do mouse
  */
 
-vector<pair<int, int>> explodeRam;
+vector<pair<int, int>> points;
 
 void mouse(int button, int state, int x, int y) {
     switch(button) {
@@ -244,35 +248,27 @@ void mouse(int button, int state, int x, int y) {
         if(state == GLUT_DOWN) {
             if(modo == FILL) {
                 cout << x << " " << y << endl;
-                GLubyte initial[3];
-                glReadPixels(x, height - y - 1, 1, 1, GL_RGB, GL_UNSIGNED_BYTE, initial);
+                auto initial = aux[x][y];
                 stack<pair<int, int>> q;
-                q.push({ x, height - y - 1 });
+                q.push({ x, y });
                 vector<int> dx = { 0,  0, -1, 1},
                             dy = { 1, -1,  0, 0};
                 vector<vector<bool>> visited(width, vector<bool>(height, false));
                 while(!q.empty()) {
                     auto u = q.top(); q.pop();
-                    // cout << "Painting " << u.first << " " << u.second << " " << q.size() << endl;
                     visited[u.first][u.second] = true;
 
-                    // try changing this to auxiliary matrix
-                    GLubyte pixel[3];
-                    glReadPixels(u.first, u.second, 1, 1, GL_RGB, GL_UNSIGNED_BYTE, pixel);
+                    auto pixel = aux[u.first][u.second];
 
                     if(pixel[0] == initial[0] && pixel[1] == initial[1] && pixel[2] == initial[2])
-                        explodeRam.PB({ u.first, u.second });
-                    else {
-                        cout << (int) pixel[0] << " " << (int) pixel[1] << " " << (int) pixel[2] << endl;
-                        continue;
-                    }
+                        points.PB({ u.first, u.second });
+                    else continue;
 
                     for(int i = 0; i < dx.size(); i++) {
                         int xx = u.first + dx[i], yy = u.second + dy[i];
                         if(xx < 512 && xx >= 0 && yy < 512 && yy >= 0) {
                             if(visited[xx][yy]) continue;
                             q.push({ xx, yy });
-                            visited[xx][yy] = true;
                         }
                     }
                 }
@@ -283,7 +279,7 @@ void mouse(int button, int state, int x, int y) {
                     auto firstVertex = openPolygon->vertices[0];
 
                     x_1 = x;
-                    y_1 = height - y - 1;
+                    y_1 = y;
 
                     // se o novo vértice estiver na região de uma circunferência
                     // com centro no primeiro vértice, feche o polígono
@@ -304,12 +300,12 @@ void mouse(int button, int state, int x, int y) {
                 } else {
                     click1 = true;
                     x_1 = x;
-                    y_1 = height - y - 1;
+                    y_1 = y;
                     pushPolygon(x_1, y_1);
                 }
             } else if(click1) {
                 x_2 = x;
-                y_2 = height - y - 1;
+                y_2 = y;
                 printf("Clique 2(%d, %d)\n",x_2,y_2);
                 
                 switch(modo) {
@@ -325,7 +321,7 @@ void mouse(int button, int state, int x, int y) {
             } else {
                 click1 = true;
                 x_1 = x;
-                y_1 = height - y - 1;
+                y_1 = y;
                 printf("Clique 1(%d, %d)\n",x_1,y_1);
             }
         }
@@ -350,7 +346,7 @@ void mouse(int button, int state, int x, int y) {
  * Controle da posicao do cursor do mouse
  */
 void mousePassiveMotion(int x, int y) {
-    m_x = x; m_y = height - y - 1;
+    m_x = x; m_y = y;
     glutPostRedisplay();
 }
 
@@ -358,9 +354,9 @@ void mousePassiveMotion(int x, int y) {
  * Funcao para desenhar apenas um pixel na tela
  */
 void drawPixel(int x, int y) {
-    glBegin(GL_POINTS); // Seleciona a primitiva GL_POINTS para desenhar
-    glVertex2i(x, y);
-    glEnd();  // indica o fim do ponto
+    if(x < 0 || y < 0 || x >= width || y >= height) return;
+    auto &pixel = aux[x][y];
+    pixel[0] = pixel[1] = pixel[2] = 0;
 }
 
 /*
@@ -381,7 +377,7 @@ void drawFormas() {
         }
     }
 
-    for(auto i: explodeRam) {
+    for(auto i: points) {
         drawPixel(i.first, i.second);
     }
     
@@ -408,6 +404,15 @@ void drawFormas() {
         auto &v = f.vertices;
         for(int i = 1; i < v.size(); i++) {
             bresenham(v[i - 1], v[i]);
+        }
+    }
+
+    for(int i = 0; i < width; i++) {
+        for(int j = 0; j < height; j++) {
+            glColor3ub(aux[i][j][0], aux[i][j][1], aux[i][j][2]);
+            glBegin(GL_POINTS); // Seleciona a primitiva GL_POINTS para desenhar
+            glVertex2i(i, j);
+            glEnd();  // indica o fim do ponto
         }
     }
     // for(forward_list<forma>::iterator f = formas.begin(); f != formas.end(); f++){
