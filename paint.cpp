@@ -28,6 +28,7 @@
 #include <unistd.h>
 #include <array>
 #include <set>
+#include <algorithm>
 #include "glut_text.h"
 #include "matrix.hpp"
 
@@ -74,22 +75,26 @@ public:
     }
 
     pair<int, int> getCentroid() {
-        if(centroidCalculated) return centroid;
+        //if(centroidCalculated) return centroid;
         centroidCalculated = true;
 
-        int area = 0;
+        double area = 0, soma_x = 0, soma_y = 0;
 
-        for(int i = 0; i < vertices.size(); i++) {
-            int j = (i + 1) % vertices.size();
-            int produto = vertices[i].first * vertices[j].second - vertices[j].first * vertices[i].second;
-            area += produto;
-            centroid.first += (vertices[i].first + vertices[i].second) * produto;
-            centroid.second += (vertices[j].first + vertices[j].second) * produto;
-            
+        auto n = vertices.size();
+
+        for(int i = 0, j; i < n; i++) {
+            j = (i + 1) % n;
+            area += vertices[i].first * vertices[j].second - vertices[j].first * vertices[i].second;
         }
 
-        centroid.first /= (3 * area);
-        centroid.second /= (3 * area);
+        for(int i = 0, j; i < n; i++) {
+            j = (i + 1) % n;
+            soma_x += (vertices[i].first + vertices[j].first) * (vertices[i].first * vertices[j].second - vertices[j].first * vertices[i].second);
+            soma_y += (vertices[i].second + vertices[j].second) * (vertices[i].first * vertices[j].second - vertices[j].first * vertices[i].second);
+        }
+
+        centroid.first = ceil(soma_x / (3 * area));
+        centroid.second = ceil(soma_y / (3 * area));
 
         return centroid;
     }
@@ -172,8 +177,8 @@ void reshape(int w, int h) {
 
 	glViewport(0, 0, w, h);
 	
-	width = w;
-	height = h;
+	// width = w;
+	// height = h;
     glOrtho (0, w, h, 0, -1, 1);  
 
     glMatrixMode(GL_MODELVIEW);
@@ -201,12 +206,21 @@ void menu_popup(int value) {
 }
 
 bool canTransformLast = false;
+vector<pair<int, int>> points;
 
 void keyboard(unsigned char key, int x, int y) {
-    cout << (int) key << " (ASCII)"<< endl;
-    switch(key) {
-        case ESC: exit(EXIT_SUCCESS); break;
+    // cout << (int) key << " (ASCII)"<< endl;
+    if(key == ESC) exit(EXIT_SUCCESS);
+    if(!canTransformLast) return;
+    form &lastForm = forms[forms.size() - 1];
+    auto centroid = lastForm.getCentroid();
+    Matrix<double> m[3] = {
+        Matrix<double>::translationMatrix(-centroid.first, -centroid.second),
+        Matrix<double>::rotationMatrix(M_PI / 2),
+        Matrix<double>::translationMatrix(centroid.first, centroid.second)
+    };
 
+    switch(key) {
         case 'O':
         sx += 0.01;
         break;
@@ -223,14 +237,33 @@ void keyboard(unsigned char key, int x, int y) {
         sy -= 0.01;
         break;
 
+        case 'R':
+        cout << "Centroide: " << centroid.first << " " << centroid.second << endl;
+        for(int a = 0; a < 3; a++)
+            for(auto &i: lastForm.vertices) {
+                auto aux = m[a] * i;
+                i = { ceil(aux.first), ceil(aux.second) };
+            }
+        break;
+
+        // case 'r':
+        // cout << "Centroide: " << centroid.first << " " << centroid.second << endl;
+        // m = Matrix<double>::translationMatrix(-centroid.first, -centroid.second)
+        //             * Matrix<double>::rotationMatrix(-0.1)
+        //             * Matrix<double>::translationMatrix(centroid.first, centroid.second);
+        // for(auto &i: lastForm.vertices) {
+        //     auto aux = m * i;
+        //     i = { aux.first, aux.second };
+        //     points.PB(i);
+        //     cout << i.first << " " << i.second << endl;
+        // }
+        // break;
+
         case ENTER:
-        if(!canTransformLast) break;
-        form &lastForm = forms[forms.size() - 1];
         for(auto &i: lastForm.vertices) {
             i.first *= sx;
             i.second *= sy;
         }
-
         break;
     }
     glutPostRedisplay();
@@ -265,9 +298,6 @@ void keyboardSpecial(int key, int x, int y) {
 /*
  * Controle dos botoes do mouse
  */
-
-vector<pair<int, int>> points;
-
 void mouse(int button, int state, int x, int y) {
     switch(button) {
         case GLUT_LEFT_BUTTON:

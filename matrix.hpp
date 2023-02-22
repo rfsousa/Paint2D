@@ -19,8 +19,17 @@ public:
         { 0, 0, 1 }
     }) {};
 
+    vector<T>& operator[](size_t rhs) {
+        return matrix[rhs];
+    }
+
+    Matrix operator=(Matrix rhs) {
+        matrix = rhs.matrix;
+        return *this;
+    }
+
     // sobrecarga de operador
-    pair<T, T> operator *(pair<T, T> rhs) {
+    pair<T, T> operator*(pair<T, T> rhs) {
         if(matrix.size() == 0) return rhs;
         // não é possível multiplicar, pensando em rhs como coordenadas homogeneas.
         if(matrix[0].size() != 3) return rhs;
@@ -40,7 +49,7 @@ public:
     }
 
 
-    Matrix operator *(Matrix rhs) {
+    Matrix operator*(Matrix rhs) {
         if(matrix.size() == 0) return *this;
         if(matrix[0].size() != rhs.matrix.size()) return *this;
 
