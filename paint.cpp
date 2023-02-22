@@ -73,6 +73,27 @@ public:
         vertices.PB(vertex);
     }
 
+    pair<int, int> getCentroid() {
+        if(centroidCalculated) return centroid;
+        centroidCalculated = true;
+
+        int area = 0;
+
+        for(int i = 0; i < vertices.size(); i++) {
+            int j = (i + 1) % vertices.size();
+            int produto = vertices[i].first * vertices[j].second - vertices[j].first * vertices[i].second;
+            area += produto;
+            centroid.first += (vertices[i].first + vertices[i].second) * produto;
+            centroid.second += (vertices[j].first + vertices[j].second) * produto;
+            
+        }
+
+        centroid.first /= (3 * area);
+        centroid.second /= (3 * area);
+
+        return centroid;
+    }
+
 };
 
 vector<form> forms;
@@ -179,6 +200,8 @@ void menu_popup(int value) {
     modo = value;
 }
 
+bool canTransformLast = false;
+
 void keyboard(unsigned char key, int x, int y) {
     cout << (int) key << " (ASCII)"<< endl;
     switch(key) {
@@ -201,7 +224,7 @@ void keyboard(unsigned char key, int x, int y) {
         break;
 
         case ENTER:
-
+        if(!canTransformLast) break;
         form &lastForm = forms[forms.size() - 1];
         for(auto &i: lastForm.vertices) {
             i.first *= sx;
@@ -216,15 +239,16 @@ void keyboard(unsigned char key, int x, int y) {
 void keyboardSpecial(int key, int x, int y) {
     cout << key << " (Unicode)" << endl;
     if(forms.size() == 0) return;
+    if(!canTransformLast) return;
     form &lastForm = forms[forms.size() - 1];
 
     switch(key) {
         case UP:
-        for(auto &i: lastForm.vertices) i.second += 4;
+        for(auto &i: lastForm.vertices) i.second -= 4;
         break;
 
         case DOWN:
-        for(auto &i: lastForm.vertices) i.second -= 4;
+        for(auto &i: lastForm.vertices) i.second += 4;
         break;
 
         case LEFT:
@@ -249,6 +273,8 @@ void mouse(int button, int state, int x, int y) {
         case GLUT_LEFT_BUTTON:
         if(state == GLUT_DOWN) {
             if(modo == FILL) {
+                canTransformLast = false;
+                drawFormas(); // bug fix
                 cout << x << " " << y << endl;
                 auto initial = aux[x][y];
                 stack<pair<int, int>> q;
@@ -319,6 +345,7 @@ void mouse(int button, int state, int x, int y) {
                 }
 
                 click1 = false;
+                canTransformLast = true;
                 glutPostRedisplay();
             } else {
                 click1 = true;
@@ -462,7 +489,7 @@ void drawFormas() {
     }
     
     //Percorre a lista de formas geometricas para desenhar
-    int bound = (openPolygon == nullptr ? forms.size() : forms.size() - 1);
+    int bound = (openPolygon == nullptr && !canTransformLast ? forms.size() : forms.size() - 1);
     form f;
     for(int i = 0; i < bound; i++) {
         f = forms[i];
@@ -493,6 +520,21 @@ void drawFormas() {
             glBegin(GL_POINTS); // Seleciona a primitiva GL_POINTS para desenhar
             glVertex2i(i, j);
             glEnd();  // indica o fim do ponto
+        }
+    }
+
+    if(canTransformLast) {
+        auto f = forms[forms.size() - 1];
+        switch(f.type) {
+            case LIN:
+            bresenham(f.vertices[0], f.vertices[1], false);
+            break;
+            default:
+            auto &v = f.vertices;
+            for(int i = 1; i < v.size(); i++) {
+                bresenham(v[i - 1], v[i], false);
+            }
+            bresenham(v[v.size() - 1], v[0], false);
         }
     }
 
