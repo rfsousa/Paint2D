@@ -29,6 +29,7 @@
 #include <array>
 #include <set>
 #include "glut_text.h"
+#include "matrix.hpp"
 
 #define PB push_back
 #define SQ(x) (x)*(x)
@@ -50,7 +51,8 @@ bool click1 = false;
 int m_x, m_y, x_1, y_1, x_2, y_2;
 int modo = LIN;
 int width = 512, height = 512;
-vector<vector<array<GLubyte, 3>>> aux(width, vector<array<GLubyte, 3>>(height, { 0xFF, 0xFF, 0xFF }));
+vector<vector<array<GLubyte, 3>>> aux(width, vector<array<GLubyte, 3>>(height, { 0xFF, 0xFF, 0xFF })),
+                                  tmp(width, vector<array<GLubyte, 3>>(height, { 0xFF, 0xFF, 0xFF }));
 
 struct form {
 private:
@@ -107,10 +109,10 @@ void keyboard(unsigned char key, int x, int y);
 void keyboardSpecial(int key, int x, int y);
 void mouse(int button, int state, int x, int y);
 void mousePassiveMotion(int x, int y);
-void drawPixel(int x, int y);
+void drawPixel(int x, int y, bool keep);
 void drawFormas();
-void bresenham(int x1, int y1, int x2, int y2);
-void bresenham(pair<int, int> p1, pair<int, int> p2);
+void bresenham(int x1, int y1, int x2, int y2, bool keep);
+void bresenham(pair<int, int> p1, pair<int, int> p2, bool keep);
 
 int main(int argc, char** argv) {
     glutInit(&argc, argv);
@@ -353,92 +355,22 @@ void mousePassiveMotion(int x, int y) {
 /*
  * Funcao para desenhar apenas um pixel na tela
  */
-void drawPixel(int x, int y) {
+void drawPixel(int x, int y, bool keep = true) {
     if(x < 0 || y < 0 || x >= width || y >= height) return;
-    auto &pixel = aux[x][y];
-    pixel[0] = pixel[1] = pixel[2] = 0;
+    if(keep) {
+        auto &pixel = aux[x][y];
+        pixel[0] = pixel[1] = pixel[2] = 0;
+    } else {
+        auto &pixel = tmp[x][y];
+        pixel[0] = pixel[1] = pixel[2] = 0;
+    }
 }
 
-/*
- *Funcao que desenha a lista de formas geometricas
- */
-void drawFormas() {
-    //Apos o primeiro clique, desenha a reta com a posicao atual do mouse
-    if(click1) {
-        switch(modo) {
-            case RECT:
-            bresenham(x_1, y_1, m_x, y_1);
-            bresenham(m_x, y_1, m_x, m_y);
-            bresenham(m_x, m_y, x_1, m_y);
-            bresenham(x_1, m_y, x_1, y_1);
-            break;
-            default:
-            bresenham(x_1, y_1, m_x, m_y);
-        }
-    }
-
-    for(auto i: points) {
-        drawPixel(i.first, i.second);
-    }
-    
-    //Percorre a lista de formas geometricas para desenhar
-    int bound = (openPolygon == nullptr ? forms.size() : forms.size() - 1);
-    form f;
-    for(int i = 0; i < bound; i++) {
-        f = forms[i];
-        switch(f.type) {
-            case LIN:
-            bresenham(f.vertices[0], f.vertices[1]);
-            break;
-            default:
-            auto &v = f.vertices;
-            for(int i = 1; i < v.size(); i++) {
-                bresenham(v[i - 1], v[i]);
-            }
-            bresenham(v[v.size() - 1], v[0]);
-        }
-    }
-
-    if(openPolygon != nullptr) {
-        f = forms[forms.size() - 1];
-        auto &v = f.vertices;
-        for(int i = 1; i < v.size(); i++) {
-            bresenham(v[i - 1], v[i]);
-        }
-    }
-
-    for(int i = 0; i < width; i++) {
-        for(int j = 0; j < height; j++) {
-            glColor3ub(aux[i][j][0], aux[i][j][1], aux[i][j][2]);
-            glBegin(GL_POINTS); // Seleciona a primitiva GL_POINTS para desenhar
-            glVertex2i(i, j);
-            glEnd();  // indica o fim do ponto
-        }
-    }
-    // for(forward_list<forma>::iterator f = formas.begin(); f != formas.end(); f++){
-    //     switch (f->tipo) {
-    //         case LIN:
-    //         int i = 0, x[2], y[2];
-    //             //Percorre a lista de vertices da forma linha para desenhar
-    //         for(forward_list<vertice>::iterator v = f->v.begin(); v != f->v.end(); v++, i++){
-    //             x[i] = v->x;
-    //             y[i] = v->y;
-    //         }
-    //             //Desenha o segmento de reta apos dois cliques
-    //         bresenham(x[0], y[0], x[1], y[1]);
-    //         break;
-    //         case RET:
-
-    //         break;
-    //     }
-    // }
+void bresenham(pair<int, int> p1, pair<int, int> p2, bool keep = true) {
+    bresenham(p1.first, p1.second, p2.first, p2.second, keep);
 }
 
-void bresenham(pair<int, int> p1, pair<int, int> p2) {
-    bresenham(p1.first, p1.second, p2.first, p2.second);
-}
-
-void bresenham(int x1, int y1, int x2, int y2) {
+void bresenham(int x1, int y1, int x2, int y2, bool keep = true) {
     // Decidi refatorar este código em relação ao código enviado como tarefa
     // Isso ocorreu após a leitura do livro "Computer Graphics with OpenGL".
     int dx = x1 - x2, dy = y1 - y2;
@@ -485,7 +417,7 @@ void bresenham(int x1, int y1, int x2, int y2) {
     if(declive) swap(_x, _y);
     if(simetrico) _y = -_y;
 
-    drawPixel(_x, _y);
+    drawPixel(_x, _y, keep);
 
     while(x < xEnd) {
         x++;
@@ -500,6 +432,97 @@ void bresenham(int x1, int y1, int x2, int y2) {
         if(declive) swap(_x, _y);
         if(simetrico) _y = -_y;
 
-        drawPixel(_x, _y);
+        drawPixel(_x, _y, keep);
     }
+}
+
+/*
+ *Funcao que desenha a lista de formas geometricas
+ */
+void drawFormas() {
+    //Apos o primeiro clique, desenha a reta com a posicao atual do mouse
+
+    if(click1) {
+        switch(modo) {
+            case RECT:
+            bresenham(x_1, y_1, m_x, y_1, false);
+            bresenham(m_x, y_1, m_x, m_y, false);
+            bresenham(m_x, m_y, x_1, m_y, false);
+            bresenham(x_1, m_y, x_1, y_1, false);
+            break;
+            default:
+            bresenham(x_1, y_1, m_x, m_y, false);
+        }
+    }
+
+    glutPostRedisplay();
+
+    for(auto i: points) {
+        drawPixel(i.first, i.second);
+    }
+    
+    //Percorre a lista de formas geometricas para desenhar
+    int bound = (openPolygon == nullptr ? forms.size() : forms.size() - 1);
+    form f;
+    for(int i = 0; i < bound; i++) {
+        f = forms[i];
+        switch(f.type) {
+            case LIN:
+            bresenham(f.vertices[0], f.vertices[1]);
+            break;
+            default:
+            auto &v = f.vertices;
+            for(int i = 1; i < v.size(); i++) {
+                bresenham(v[i - 1], v[i]);
+            }
+            bresenham(v[v.size() - 1], v[0]);
+        }
+    }
+
+    if(openPolygon != nullptr) {
+        f = forms[forms.size() - 1];
+        auto &v = f.vertices;
+        for(int i = 1; i < v.size(); i++) {
+            bresenham(v[i - 1], v[i]);
+        }
+    }
+
+    for(int i = 0; i < width; i++) {
+        for(int j = 0; j < height; j++) {
+            glColor3ub(aux[i][j][0], aux[i][j][1], aux[i][j][2]);
+            glBegin(GL_POINTS); // Seleciona a primitiva GL_POINTS para desenhar
+            glVertex2i(i, j);
+            glEnd();  // indica o fim do ponto
+        }
+    }
+
+    for(int i = 0; i < width; i++) {
+        for(int j = 0; j < height; j++) {
+            auto pixel = tmp[i][j];
+            tmp[i][j][0] = tmp[i][j][1] = tmp[i][j][2] = 0xFF;
+            if(pixel[0] == pixel[1] && pixel[1] == pixel[2]
+                && pixel[2] == 0xFF) continue;
+            glColor3ub(pixel[0], pixel[1], pixel[2]);
+            glBegin(GL_POINTS); // Seleciona a primitiva GL_POINTS para desenhar
+            glVertex2i(i, j);
+            glEnd();  // indica o fim do ponto
+        }
+    }
+    // for(forward_list<forma>::iterator f = formas.begin(); f != formas.end(); f++){
+    //     switch (f->tipo) {
+    //         case LIN:
+    //         int i = 0, x[2], y[2];
+    //             //Percorre a lista de vertices da forma linha para desenhar
+    //         for(forward_list<vertice>::iterator v = f->v.begin(); v != f->v.end(); v++, i++){
+    //             x[i] = v->x;
+    //             y[i] = v->y;
+    //         }
+    //             //Desenha o segmento de reta apos dois cliques
+    //         bresenham(x[0], y[0], x[1], y[1]);
+    //         break;
+    //         case RET:
+
+    //         break;
+    //     }
+    // }
 }
