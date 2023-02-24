@@ -56,10 +56,6 @@ vector<vector<array<GLubyte, 3>>> aux(width, vector<array<GLubyte, 3>>(height, {
                                   tmp(width, vector<array<GLubyte, 3>>(height, { 0xFF, 0xFF, 0xFF }));
 
 struct form {
-private:
-    bool centroidCalculated = false;
-    pair<int, int> centroid = { 0, 0 };
-public:
     form_type type;
     vector<pair<int, int>> vertices;
 
@@ -74,9 +70,14 @@ public:
         vertices.PB(vertex);
     }
 
-    pair<int, int> getCentroid() {
-        //if(centroidCalculated) return centroid;
-        centroidCalculated = true;
+    pair<double, double> getCentroid() {
+
+        // a reta não possui área, o centroide é o ponto médio
+        // entre os dois pontos que a descrevem
+        if(type == LIN) {
+            return { (vertices[0].first + vertices[1].first) / 2.0,
+                (vertices[0].second + vertices[1].second) / 2.0};
+        }
 
         double area = 0, soma_x = 0, soma_y = 0;
 
@@ -93,10 +94,7 @@ public:
             soma_y += (vertices[i].second + vertices[j].second) * (vertices[i].first * vertices[j].second - vertices[j].first * vertices[i].second);
         }
 
-        centroid.first = ceil(soma_x / (3 * area));
-        centroid.second = ceil(soma_y / (3 * area));
-
-        return centroid;
+        return { soma_x / (3 * area), soma_y / (3 * area) };
     }
 
 };
@@ -160,6 +158,7 @@ int main(int argc, char** argv) {
     glutAddMenuEntry("Triangulo", TRI);
     glutAddMenuEntry("Poligono", POL);
     glutAddMenuEntry("Preencher", FILL);
+    glutAddMenuEntry("Limpar", -1);
     glutAddMenuEntry("Sair", 0);
     glutAttachMenu(GLUT_RIGHT_BUTTON);
     
@@ -188,82 +187,141 @@ void reshape(int w, int h) {
 
 double sx = 1, sy = 1;
 
+GLubyte r = 0, g = 0, b = 0;
+
 void display(void) {
     glClear(GL_COLOR_BUFFER_BIT);
-    glColor3f (0.0, 0.0, 0.0);
+    glColor3ub(r, g, b);
     drawFormas();
     stringstream ss;
     ss << fixed << setprecision(2) << " Sx: " << sx << " Sy: " << sy;
-    glColor3ub(0, 0, 0);
+    glColor3ub(r, g, b);
     draw_text_stroke(0, height, "(" + to_string(m_x) + "," + to_string(m_y) +
         ")" + ss.str(), 0.2);
     glutSwapBuffers();
 }
 
-void menu_popup(int value) {
-    if(value == 0) exit(EXIT_SUCCESS);
-    modo = value;
-}
+vector<pair<int, int>> points;
 
 bool canTransformLast = false;
-vector<pair<int, int>> points;
+
+void clearMatrices() {
+    for(int i = 0; i < width; i++) {
+        for(int j = 0; j < height; j++) {
+            aux[i][j][0] = aux[i][j][1] = aux[i][j][2] = 0xFF;
+            tmp[i][j][0] = tmp[i][j][1] = tmp[i][j][2] = 0xFF;
+        }
+    }
+}
+
+void menu_popup(int value) {
+    if(value == 0) exit(EXIT_SUCCESS);
+    if(value == -1) {
+        forms.clear();
+        points.clear();
+        canTransformLast = false;
+        clearMatrices();
+        cout << "Limpando...\n";
+    }
+    else modo = value;
+}
+
+void transform(form &f, vector<Matrix<double>> transforms) {
+    for(int a = 0; a < transforms.size(); a++)
+            for(auto &i: f.vertices) {
+                auto aux = transforms[a] * i;
+                i = { round(aux.first), round(aux.second) };
+            }
+}
 
 void keyboard(unsigned char key, int x, int y) {
     // cout << (int) key << " (ASCII)"<< endl;
     if(key == ESC) exit(EXIT_SUCCESS);
+
+
+    switch(key) {
+        case 'R':
+        r = min((int) r + 16, 255);
+        cout << (int) r << endl;
+        return;
+        case 'r':
+        r = max((int) r - 16, 0);
+        cout << (int) r << endl;
+        return;
+    }
+
     if(!canTransformLast) return;
     form &lastForm = forms[forms.size() - 1];
     auto centroid = lastForm.getCentroid();
-    Matrix<double> m[3] = {
+
+    // inicialmente, imaginou-se criar uma classe de matrizes que
+    // suporte a operação de multiplicação para gerar uma matriz
+    // de transformação final
+    vector<Matrix<double>> m = {
         Matrix<double>::translationMatrix(-centroid.first, -centroid.second),
-        Matrix<double>::rotationMatrix(M_PI / 2),
+        Matrix<double>(),
         Matrix<double>::translationMatrix(centroid.first, centroid.second)
     };
 
     switch(key) {
         case 'O':
-        sx += 0.01;
+        m[1] = Matrix<double>::scaleMatrix(1.1, 1);
+        transform(lastForm, m);
         break;
 
         case 'o':
-        sx -= 0.01;
+        m[1] = Matrix<double>::scaleMatrix(0.9, 1);
+        transform(lastForm, m);
         break;
 
         case 'P':
-        sy += 0.01;
+        m[1] = Matrix<double>::scaleMatrix(1, 1.1);
+        transform(lastForm, m);
         break;
 
         case 'p':
-        sy -= 0.01;
+        m[1] = Matrix<double>::scaleMatrix(1, 0.9);
+        transform(lastForm, m);
         break;
 
-        case 'R':
-        cout << "Centroide: " << centroid.first << " " << centroid.second << endl;
-        for(int a = 0; a < 3; a++)
-            for(auto &i: lastForm.vertices) {
-                auto aux = m[a] * i;
-                i = { ceil(aux.first), ceil(aux.second) };
-            }
+        case 'Z':
+        m[1] = Matrix<double>::rotationMatrix(M_PI / 16);
+        transform(lastForm, m);
         break;
 
-        // case 'r':
-        // cout << "Centroide: " << centroid.first << " " << centroid.second << endl;
-        // m = Matrix<double>::translationMatrix(-centroid.first, -centroid.second)
-        //             * Matrix<double>::rotationMatrix(-0.1)
-        //             * Matrix<double>::translationMatrix(centroid.first, centroid.second);
-        // for(auto &i: lastForm.vertices) {
-        //     auto aux = m * i;
-        //     i = { aux.first, aux.second };
-        //     points.PB(i);
-        //     cout << i.first << " " << i.second << endl;
-        // }
-        // break;
+        case 'z':
+        m[1] = Matrix<double>::rotationMatrix(-M_PI / 16);
+        transform(lastForm, m);
+        break;
 
-        case ENTER:
-        for(auto &i: lastForm.vertices) {
-            i.first *= sx;
-            i.second *= sy;
-        }
+        case 'X':
+        m[1] = Matrix<double>::shearMatrix(0.1, 0);
+        transform(lastForm, m);
+        break;
+
+        case 'x':
+        m[1] = Matrix<double>::shearMatrix(-0.1, 0);
+        transform(lastForm, m);
+        break;
+
+        case 'Y':
+        m[1] = Matrix<double>::shearMatrix(0, 0.1);
+        transform(lastForm, m);
+        break;
+
+        case 'y':
+        m[1] = Matrix<double>::shearMatrix(0, -0.1);
+        transform(lastForm, m);
+        break;
+
+        case 'M':
+        m[1] = Matrix<double>::scaleMatrix(-1, 1);
+        transform(lastForm, m);
+        break;
+
+        case 'm':
+        m[1] = Matrix<double>::scaleMatrix(1, -1);
+        transform(lastForm, m);
         break;
     }
     glutPostRedisplay();
@@ -312,14 +370,19 @@ void mouse(int button, int state, int x, int y) {
                 vector<int> dx = { 0,  0, -1, 1},
                             dy = { 1, -1,  0, 0};
                 vector<vector<bool>> visited(width, vector<bool>(height, false));
+                vector<pair<int, int>> tr;
                 while(!q.empty()) {
                     auto u = q.top(); q.pop();
                     visited[u.first][u.second] = true;
 
                     auto pixel = aux[u.first][u.second];
 
-                    if(pixel[0] == initial[0] && pixel[1] == initial[1] && pixel[2] == initial[2])
+                    // o problema das cores pode ser resolvido adicionando comparações
+                    // envolvendo a matriz auxiliar aqui
+                    if((pixel[0] == initial[0] && pixel[1] == initial[1] && pixel[2] == initial[2])) {
                         points.PB({ u.first, u.second });
+                        tr.PB({ u.first, u.second });
+                    }
                     else continue;
 
                     for(int i = 0; i < dx.size(); i++) {
@@ -329,6 +392,11 @@ void mouse(int button, int state, int x, int y) {
                             q.push({ xx, yy });
                         }
                     }
+                }
+                for(auto p: tr) {
+                    auto &pixel = aux[p.first][p.second];
+
+                    pixel[0] = pixel[1] = pixel[2] = 0xFF;
                 }
                 glutPostRedisplay();
             } else if(modo == POL || modo == TRI) {
@@ -341,8 +409,9 @@ void mouse(int button, int state, int x, int y) {
 
                     // se o novo vértice estiver na região de uma circunferência
                     // com centro no primeiro vértice, feche o polígono
-                    if(SQ(firstVertex.first - x_1) + SQ(firstVertex.second - y_1) <= SQ(8)) {
+                    if(SQ(firstVertex.first - x_1) + SQ(firstVertex.second - y_1) <= SQ(10)) {
                         openPolygon = nullptr;
+                        canTransformLast = true;
                         click1 = false;
                     } else {
                         openPolygon->addVertex({
@@ -351,12 +420,14 @@ void mouse(int button, int state, int x, int y) {
                         if(modo == TRI) {
                             if(openPolygon->vertices.size() == 3) {
                                 openPolygon = nullptr;
+                                canTransformLast = true;
                                 click1 = false;
                             }
                         }
                     }
                 } else {
                     click1 = true;
+                    canTransformLast = false;
                     x_1 = x;
                     y_1 = y;
                     pushPolygon(x_1, y_1);
@@ -379,6 +450,7 @@ void mouse(int button, int state, int x, int y) {
                 glutPostRedisplay();
             } else {
                 click1 = true;
+                canTransformLast = false;
                 x_1 = x;
                 y_1 = y;
                 printf("Clique 1(%d, %d)\n",x_1,y_1);
@@ -416,10 +488,18 @@ void drawPixel(int x, int y, bool keep = true) {
     if(x < 0 || y < 0 || x >= width || y >= height) return;
     if(keep) {
         auto &pixel = aux[x][y];
-        pixel[0] = pixel[1] = pixel[2] = 0;
+        if(!(
+            pixel[0] == pixel[1] && pixel [1] == pixel[2]
+            && pixel[2] == 0xFF
+            )) return;
+        pixel[0] = r;
+        pixel[1] = g;
+        pixel[2] = b;
     } else {
         auto &pixel = tmp[x][y];
-        pixel[0] = pixel[1] = pixel[2] = 0;
+        pixel[0] = r;
+        pixel[1] = g;
+        pixel[2] = b;
     }
 }
 
@@ -540,7 +620,7 @@ void drawFormas() {
         f = forms[forms.size() - 1];
         auto &v = f.vertices;
         for(int i = 1; i < v.size(); i++) {
-            bresenham(v[i - 1], v[i]);
+            bresenham(v[i - 1], v[i], false);
         }
     }
 

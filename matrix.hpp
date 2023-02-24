@@ -39,19 +39,36 @@ public:
 
         for(int i = 0; i < 3; i++) {
             T c = 0;
-            for(int j = 0; j < matrix[0].size(); j++) {
+            for(int j = 0; j < matrix[i].size(); j++) {
                 c += matrix[i][j] * vec[j];
             }
             ret[i] = c;
         }
 
-        return { ret[0] / ret[2], ret[1] / ret[2] };
+        return { ret[0], ret[1] };
     }
 
 
     Matrix operator*(Matrix rhs) {
         if(matrix.size() == 0) return *this;
-        if(matrix[0].size() != rhs.matrix.size()) return *this;
+        if(matrix[0].size() != rhs.matrix.size()) {
+            cout << "Cant multiply matrices\n";
+            return *this;
+        }
+
+        cout << "A matriz é\n";
+        for(int i = 0; i < matrix.size(); i++) {
+            for(int j = 0; j < matrix[i].size(); j++) {
+                cout << matrix[i][j] << " ";
+            }
+            cout << "\t";
+            for(int j = 0; j < matrix[i].size(); j++) {
+                cout << rhs.matrix[i][j] << " ";
+            }
+
+            cout << endl;
+        }
+        cout << endl << endl;
 
         const int r = matrix.size(), c = rhs.matrix[0].size();
 
@@ -68,6 +85,16 @@ public:
         }
 
         return Matrix(ret);
+    }
+
+    void printMatrix() {
+        for(int i = 0; i < matrix.size(); i++) {
+            for(int j = 0; j < matrix[i].size(); j++) {
+                cout << matrix[i][j] << " ";
+            }
+            cout << endl;
+        }
+        cout << endl;
     }
 
     static Matrix translationMatrix(T x, T y) {
