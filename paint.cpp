@@ -122,7 +122,7 @@ void pushPolygon(int x, int y) {
     form polygon { POL };
     polygon.addVertex(x, y);
     forms.PB(polygon);
-    openPolygon = &forms[forms.size() - 1];
+    openPolygon = &forms.back();
 }
 
 void pushCircunference(int x, int y, int r) {
@@ -186,8 +186,8 @@ void reshape(int w, int h) {
 
 	glViewport(0, 0, w, h);
 	
-	// width = w;
-	// height = h;
+	width = w;
+	height = h;
     glOrtho (0, w, h, 0, -1, 1);  
 
     glMatrixMode(GL_MODELVIEW);
@@ -257,7 +257,7 @@ void keyboard(unsigned char key, int x, int y) {
     }
 
     if(!canTransformLast) return;
-    form &lastForm = forms[forms.size() - 1];
+    form &lastForm = forms.back();
     if(lastForm.type == CIR) return;
     auto centroid = lastForm.getCentroid();
 
@@ -335,10 +335,10 @@ void keyboard(unsigned char key, int x, int y) {
 }
 
 void keyboardSpecial(int key, int x, int y) {
-    cout << key << " (Unicode)" << endl;
+    // cout << key << " (Unicode)" << endl;
     if(forms.size() == 0) return;
     if(!canTransformLast) return;
-    form &lastForm = forms[forms.size() - 1];
+    form &lastForm = forms.back();
 
     switch(key) {
         case UP:
@@ -360,9 +360,6 @@ void keyboardSpecial(int key, int x, int y) {
     glutPostRedisplay();
 }
 
-/*
- * Controle dos botoes do mouse
- */
 void mouse(int button, int state, int x, int y) {
     switch(button) {
         case GLUT_LEFT_BUTTON:
@@ -375,7 +372,7 @@ void mouse(int button, int state, int x, int y) {
                 vector<vector<bool>> visited(width, vector<bool>(height, false));
 
 				GLubyte initial[3];
-				glReadPixels(x, y, 1, 1, GL_RGB, GL_UNSIGNED_BYTE, initial);
+				glReadPixels(x, height - y - 1, 1, 1, GL_RGB, GL_UNSIGNED_BYTE, initial);
 
 				GLubyte* data = new GLubyte[width * height * 3];
 				glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, data);
@@ -414,7 +411,7 @@ void mouse(int button, int state, int x, int y) {
 
                     // se o novo vértice estiver na região de uma circunferência
                     // com centro no primeiro vértice, feche o polígono
-                    if(hypot(firstVertex.first - x_1, firstVertex.second - y_1) <= 4) {
+                    if(hypot(firstVertex.first - x_1, firstVertex.second - y_1) <= 8) {
                         openPolygon = nullptr;
                         canTransformLast = true;
                         click1 = false;
@@ -469,21 +466,15 @@ void mouse(int button, int state, int x, int y) {
     }
 }
 
-/*
- * Controle da posicao do cursor do mouse
- */
 void mousePassiveMotion(int x, int y) {
     m_x = x; m_y = y;
     glutPostRedisplay();
 }
 
-/*
- * Funcao para desenhar apenas um pixel na tela
- */
 void drawPixel(int x, int y) {
-	glBegin(GL_POINTS); // Seleciona a primitiva GL_POINTS para desenhar
+	glBegin(GL_POINTS);
 	glVertex2i(x, y);
-	glEnd();  // indica o fim do ponto
+	glEnd();
 }
 
 void bresenham(pair<int, int> p1, pair<int, int> p2) {
@@ -591,11 +582,14 @@ void bresenham(int x1, int y1, int x2, int y2) {
     }
 }
 
-/*
- *Funcao que desenha a lista de formas geometricas
- */
 void drawFormas() {
-    //Apos o primeiro clique, desenha a reta com a posicao atual do mouse
+
+    for(auto i: points) {
+        GLubyte *color = i.second;
+        glColor3ub(color[0], color[1], color[2]);
+        drawPixel(i.first.first, i.first.second);
+    }
+    glColor3ub(0, 0, 0);
 
     if(click1) {
         switch(modo) {
@@ -616,13 +610,6 @@ void drawFormas() {
 
     glutPostRedisplay();
 
-    for(auto i: points) {
-        GLubyte *color = i.second;
-        glColor3ub(color[0], color[1], color[2]);
-        drawPixel(i.first.first, i.first.second);
-    }
-    glColor3ub(0, 0, 0);
-
     //Percorre a lista de formas geometricas para desenhar
     int bound = (openPolygon == nullptr ? forms.size() : forms.size() - 1);
     form f;
@@ -640,54 +627,16 @@ void drawFormas() {
             for(int i = 1; i < v.size(); i++) {
                 bresenham(v[i - 1], v[i]);
             }
-            bresenham(v[v.size() - 1], v[0]);
+            bresenham(v.back(), v[0]);
         }
     }
 
     if(openPolygon != nullptr) {
-        f = forms[forms.size() - 1];
+        f = forms.back();
         auto &v = f.vertices;
         for(int i = 1; i < v.size(); i++) {
             bresenham(v[i - 1], v[i]);
         }
     }
 
-    // for(int i = 0; i < width; i++) {
-    //     for(int j = 0; j < height; j++) {
-    //         glColor3ub(aux[i][j][0], aux[i][j][1], aux[i][j][2]);
-    //         glBegin(GL_POINTS); // Seleciona a primitiva GL_POINTS para desenhar
-    //         glVertex2i(i, j);
-    //         glEnd();  // indica o fim do ponto
-    //     }
-    // }
-
-    // for(int i = 0; i < width; i++) {
-    //     for(int j = 0; j < height; j++) {
-    //         auto pixel = tmp[i][j];
-    //         tmp[i][j][0] = tmp[i][j][1] = tmp[i][j][2] = 0xFF;
-    //         if(pixel[0] == pixel[1] && pixel[1] == pixel[2]
-    //             && pixel[2] == 0xFF) continue;
-    //         glColor3ub(pixel[0], pixel[1], pixel[2]);
-    //         glBegin(GL_POINTS); // Seleciona a primitiva GL_POINTS para desenhar
-    //         glVertex2i(i, j);
-    //         glEnd();  // indica o fim do ponto
-    //     }
-    // }
-    // for(forward_list<forma>::iterator f = formas.begin(); f != formas.end(); f++){
-    //     switch (f->tipo) {
-    //         case LIN:
-    //         int i = 0, x[2], y[2];
-    //             //Percorre a lista de vertices da forma linha para desenhar
-    //         for(forward_list<vertice>::iterator v = f->v.begin(); v != f->v.end(); v++, i++){
-    //             x[i] = v->x;
-    //             y[i] = v->y;
-    //         }
-    //             //Desenha o segmento de reta apos dois cliques
-    //         bresenham(x[0], y[0], x[1], y[1]);
-    //         break;
-    //         case RET:
-
-    //         break;
-    //     }
-    // }
 }
