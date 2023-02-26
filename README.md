@@ -3,6 +3,8 @@
 Esta aplicação busca atender as especificações do trabalho da disciplina
 de Computação Gráfica (DC/CCN032) da [Universidade Federal do Piauí](ufpi.br).
 
+O código original está disponível [aqui](https://github.com/rfsousa/Paint2D).
+
 Trata-se de um editor gráfico utilizando as bibliotecas OpenGL e GLUT. 
 É limitado ao uso de pontos para formar os desenhos, utilizando algoritmos
 de rasterização de retas e polígonos.
