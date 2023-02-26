@@ -391,7 +391,7 @@ void mouse(int button, int state, int x, int y) {
                         }
                     }
                 }
-                delete data;
+                delete [] data;
                 glutPostRedisplay();
             } else if(modo == POL || modo == TRI) {
                 if(openPolygon != nullptr) {
