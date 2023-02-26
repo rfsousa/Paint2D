@@ -1,2 +1,2 @@
 default:
-	g++ -lopengl32 -lfreeglut -o bin/main paint.cpp && ./bin/main
+	g++ -lGL -lglut -o bin/main paint.cpp && ./bin/main

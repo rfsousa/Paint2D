@@ -52,8 +52,6 @@ bool click1 = false;
 int m_x, m_y, x_1, y_1, x_2, y_2;
 int modo = LIN;
 int width = 512, height = 512;
-vector<vector<array<GLubyte, 3>>> aux(width, vector<array<GLubyte, 3>>(height, { 0xFF, 0xFF, 0xFF })),
-                                  tmp(width, vector<array<GLubyte, 3>>(height, { 0xFF, 0xFF, 0xFF }));
 
 struct form {
     form_type type;
@@ -84,6 +82,7 @@ struct form {
 
         auto n = vertices.size();
 
+        // formula das areas de gauss
         for(int i = 0, j; i < n; i++) {
             j = (i + 1) % n;
             area += vertices[i].first * vertices[j].second - vertices[j].first * vertices[i].second;
@@ -143,10 +142,10 @@ void mouse(int button, int state, int x, int y);
 void mousePassiveMotion(int x, int y);
 void drawPixel(int x, int y, bool keep);
 void drawFormas();
-void bresenham(int x1, int y1, int x2, int y2, bool keep);
-void bresenham(pair<int, int> p1, pair<int, int> p2, bool keep);
-void bresenhamCircunference(pair<int, int> mid, int r, bool keep);
-void bresenhamCircunference(int x, int y, int r, bool keep);
+void bresenham(int x1, int y1, int x2, int y2);
+void bresenham(pair<int, int> p1, pair<int, int> p2);
+void bresenhamCircunference(pair<int, int> mid, int r);
+void bresenhamCircunference(int x, int y, int r);
 
 int main(int argc, char** argv) {
     glutInit(&argc, argv);
@@ -208,25 +207,15 @@ void display(void) {
     glutSwapBuffers();
 }
 
-vector<pair<int, int>> points;
+vector<pair<pair<int, int>, GLubyte*>> points;
 
 bool canTransformLast = false;
-
-void clearMatrices() {
-    for(int i = 0; i < width; i++) {
-        for(int j = 0; j < height; j++) {
-            aux[i][j][0] = aux[i][j][1] = aux[i][j][2] = 0xFF;
-            tmp[i][j][0] = tmp[i][j][1] = tmp[i][j][2] = 0xFF;
-        }
-    }
-}
 
 void menu_popup(int value) {
     if(value == 0) exit(EXIT_SUCCESS);
     if(value == -1) {
         forms.clear();
         points.clear();
-        clearMatrices();
         cout << "Limpando...\n";
     }
     else modo = value;
@@ -379,10 +368,6 @@ void mouse(int button, int state, int x, int y) {
         case GLUT_LEFT_BUTTON:
         if(state == GLUT_DOWN) {
             if(modo == FILL) {
-				cout << "?\n";
-                canTransformLast = false;
-                drawFormas(); // bug fix
-                cout << x << " " << y << endl;
                 stack<pair<int, int>> q;
                 q.push({ x, y });
                 vector<int> dx = { 0,  0, -1, 1},
@@ -394,22 +379,19 @@ void mouse(int button, int state, int x, int y) {
 
 				GLubyte* data = new GLubyte[width * height * 3];
 				glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, data);
+
+                GLubyte *color = new GLubyte[3];
+                color[0] = r;
+                color[1] = g;
+                color[2] = b;
                 while(!q.empty()) {
                     auto u = q.top(); q.pop();
                     visited[u.first][u.second] = true;
 
-                    // auto pixel = aux[u.first][u.second], pixelTmp = tmp[u.first][u.second];
-					int index = (u.second * width + u.first) * 3;
-					cout << "(" << (int) initial[0] << ", " << (int) initial[1] << ", " << (int) initial[2] << ") - ("
-					<< (int) data[index] << ", " << (int) data[index + 1] << ", " << (int) data[index + 2] << ")\n";
+					int index = ((height - u.second) * width + u.first - 1) * 3;
 
-                    // o problema das cores pode ser resolvido adicionando comparações
-                    // envolvendo a matriz auxiliar aqui
-                    // if(pixelTmp[0] == initial[0] && pixelTmp[1] == initial[1] && pixelTmp[2] == initial[2])
-                    //     points.PB({ u.first, u.second });
                     if(data[index] == initial[0] && data[index + 1] == initial[1] && data[index + 2] == initial[2]) {
-                        drawPixel(u.first, u.second, true); // points.PB({ u.first, u.second });
-						glutPostRedisplay();
+                        points.PB({ { u.first, u.second }, color });
 					}
                     else continue;
 
@@ -432,7 +414,7 @@ void mouse(int button, int state, int x, int y) {
 
                     // se o novo vértice estiver na região de uma circunferência
                     // com centro no primeiro vértice, feche o polígono
-                    if(SQ(firstVertex.first - x_1) + SQ(firstVertex.second - y_1) <= SQ(10)) {
+                    if(hypot(firstVertex.first - x_1, firstVertex.second - y_1) <= 4) {
                         openPolygon = nullptr;
                         canTransformLast = true;
                         click1 = false;
@@ -484,19 +466,6 @@ void mouse(int button, int state, int x, int y) {
             }
         }
         break;
-
-//        case GLUT_MIDDLE_BUTTON:
-//            if (state == GLUT_DOWN) {
-//                glutPostRedisplay();
-//            }
-//        break;
-//
-//        case GLUT_RIGHT_BUTTON:
-//            if (state == GLUT_DOWN) {
-//                glutPostRedisplay();
-//            }
-//        break;
-
     }
 }
 
@@ -511,47 +480,27 @@ void mousePassiveMotion(int x, int y) {
 /*
  * Funcao para desenhar apenas um pixel na tela
  */
-void drawPixel(int x, int y, bool keep = true) {
-    // if(x < 0 || y < 0 || x >= width || y >= height) return;
+void drawPixel(int x, int y) {
 	glBegin(GL_POINTS); // Seleciona a primitiva GL_POINTS para desenhar
 	glVertex2i(x, y);
 	glEnd();  // indica o fim do ponto
-	return;
-    if(keep) {
-        auto &p = aux[x][y];
-        auto t = tmp[x][y];
-        if((t[0] == p[0] && t[1] == p[1] && t[2] == p[2])) {
-            // p[0] = r;
-            // p[1] = g;
-            // p[2] = b;
-        } else {
-            p[0] = t[0];
-            p[1] = t[1];
-            p[2] = t[2];
-        }
-    } else {
-        auto &pixel = tmp[x][y];
-        pixel[0] = r;
-        pixel[1] = g;
-        pixel[2] = b;
-    }
 }
 
-void bresenham(pair<int, int> p1, pair<int, int> p2, bool keep = true) {
-    bresenham(p1.first, p1.second, p2.first, p2.second, keep);
+void bresenham(pair<int, int> p1, pair<int, int> p2) {
+    bresenham(p1.first, p1.second, p2.first, p2.second);
 }
 
-void bresenhamCircunference(pair<int, int> mid, int r, bool keep = true) {
-    bresenhamCircunference(mid.first, mid.second, r, keep);
+void bresenhamCircunference(pair<int, int> mid, int r) {
+    bresenhamCircunference(mid.first, mid.second, r);
 }
 
-void bresenhamCircunference(int x1, int y1, int r, bool keep = true) {
+void bresenhamCircunference(int x1, int y1, int r) {
     int d = 1 - r, de = 3, dse = - 2 * r + 5, x = 0, y = r;
     
-    drawPixel(x1, y + y1, keep);
-    drawPixel(x1, -y + y1, keep);
-    drawPixel(y + x1, y1, keep);
-    drawPixel(-y + x1, y1, keep);
+    drawPixel(x1, y + y1);
+    drawPixel(x1, -y + y1);
+    drawPixel(y + x1, y1);
+    drawPixel(-y + x1, y1);
 
     while(y > x) {
         if(d < 0) {
@@ -565,19 +514,19 @@ void bresenhamCircunference(int x1, int y1, int r, bool keep = true) {
             y--;
         }
         x++;
-        drawPixel(x + x1, y + y1, keep);
-        drawPixel(-x + x1, y + y1, keep);
-        drawPixel(x + x1, -y + y1, keep);
-        drawPixel(-x + x1, -y + y1, keep);
+        drawPixel(x + x1, y + y1);
+        drawPixel(-x + x1, y + y1);
+        drawPixel(x + x1, -y + y1);
+        drawPixel(-x + x1, -y + y1);
 
-        drawPixel(y + x1, x + y1, keep);
-        drawPixel(-y + x1, x + y1, keep);
-        drawPixel(y + x1, -x + y1, keep);
-        drawPixel(-y + x1, -x + y1, keep);
+        drawPixel(y + x1, x + y1);
+        drawPixel(-y + x1, x + y1);
+        drawPixel(y + x1, -x + y1);
+        drawPixel(-y + x1, -x + y1);
     }
 }
 
-void bresenham(int x1, int y1, int x2, int y2, bool keep = true) {
+void bresenham(int x1, int y1, int x2, int y2) {
     // Decidi refatorar este código em relação ao código enviado como tarefa
     int dx = x1 - x2, dy = y1 - y2;
 
@@ -623,7 +572,7 @@ void bresenham(int x1, int y1, int x2, int y2, bool keep = true) {
     if(declive) swap(_x, _y);
     if(simetrico) _y = -_y;
 
-    drawPixel(_x, _y, keep);
+    drawPixel(_x, _y);
 
     while(x < xEnd) {
         x++;
@@ -638,7 +587,7 @@ void bresenham(int x1, int y1, int x2, int y2, bool keep = true) {
         if(declive) swap(_x, _y);
         if(simetrico) _y = -_y;
 
-        drawPixel(_x, _y, keep);
+        drawPixel(_x, _y);
     }
 }
 
@@ -651,28 +600,31 @@ void drawFormas() {
     if(click1) {
         switch(modo) {
             case REC:
-            bresenham(x_1, y_1, m_x, y_1, false);
-            bresenham(m_x, y_1, m_x, m_y, false);
-            bresenham(m_x, m_y, x_1, m_y, false);
-            bresenham(x_1, m_y, x_1, y_1, false);
+            bresenham(x_1, y_1, m_x, y_1);
+            bresenham(m_x, y_1, m_x, m_y);
+            bresenham(m_x, m_y, x_1, m_y);
+            bresenham(x_1, m_y, x_1, y_1);
             break;
             case CIR:
             bresenhamCircunference(x_1, y_1, 
-                hypot(x_1 - m_x, y_1 - m_y), false);
+                hypot(x_1 - m_x, y_1 - m_y));
             break;
             default:
-            bresenham(x_1, y_1, m_x, m_y, false);
+            bresenham(x_1, y_1, m_x, m_y);
         }
     }
 
     glutPostRedisplay();
 
     for(auto i: points) {
-        drawPixel(i.first, i.second);
+        GLubyte *color = i.second;
+        glColor3ub(color[0], color[1], color[2]);
+        drawPixel(i.first.first, i.first.second);
     }
+    glColor3ub(0, 0, 0);
 
     //Percorre a lista de formas geometricas para desenhar
-    int bound = (openPolygon == nullptr && !canTransformLast ? forms.size() : forms.size() - 1);
+    int bound = (openPolygon == nullptr ? forms.size() : forms.size() - 1);
     form f;
     for(int i = 0; i < bound; i++) {
         f = forms[i];
@@ -696,7 +648,7 @@ void drawFormas() {
         f = forms[forms.size() - 1];
         auto &v = f.vertices;
         for(int i = 1; i < v.size(); i++) {
-            bresenham(v[i - 1], v[i], false);
+            bresenham(v[i - 1], v[i]);
         }
     }
 
@@ -708,24 +660,6 @@ void drawFormas() {
     //         glEnd();  // indica o fim do ponto
     //     }
     // }
-
-    if(canTransformLast) {
-        auto f = forms[forms.size() - 1];
-        switch(f.type) {
-            case LIN:
-            bresenham(f.vertices[0], f.vertices[1], false);
-            break;
-            case CIR:
-            bresenhamCircunference(f.vertices[0], f.radius, false);
-            break;
-            default:
-            auto &v = f.vertices;
-            for(int i = 1; i < v.size(); i++) {
-                bresenham(v[i - 1], v[i], false);
-            }
-            bresenham(v[v.size() - 1], v[0], false);
-        }
-    }
 
     // for(int i = 0; i < width; i++) {
     //     for(int j = 0; j < height; j++) {
