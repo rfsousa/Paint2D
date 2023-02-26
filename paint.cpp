@@ -46,7 +46,7 @@ using namespace std;
 #define MINUS 45
 #define ENTER 13
 
-enum form_type { LIN = 1, TRI, RECT, POL, CIR, FILL };
+enum form_type { LIN = 1, TRI, REC, POL, CIR, FILL };
 
 bool click1 = false;
 int m_x, m_y, x_1, y_1, x_2, y_2;
@@ -111,7 +111,7 @@ void pushLine(int x1, int y1, int x2, int y2) {
 }
 
 void pushRect(int x1, int y1, int x2, int y2) {
-    form rect { RECT };
+    form rect { REC };
     rect.addVertex({ x1, y1 });
     rect.addVertex({ x2, y1 });
     rect.addVertex({ x2, y2 });
@@ -164,7 +164,7 @@ int main(int argc, char** argv) {
     
     glutCreateMenu(menu_popup);
     glutAddMenuEntry("Linha", LIN);
-    glutAddMenuEntry("Retangulo", RECT);
+    glutAddMenuEntry("Retangulo", REC);
     glutAddMenuEntry("Triangulo", TRI);
     glutAddMenuEntry("Poligono", POL);
     glutAddMenuEntry("Circunferencia", CIR);
@@ -196,19 +196,15 @@ void reshape(int w, int h) {
 
 }
 
-double sx = 1, sy = 1;
-
 GLubyte r = 0, g = 0, b = 0;
 
 void display(void) {
     glClear(GL_COLOR_BUFFER_BIT);
     glColor3ub(r, g, b);
     drawFormas();
-    stringstream ss;
-    ss << fixed << setprecision(2) << " Sx: " << sx << " Sy: " << sy;
     glColor3ub(r, g, b);
     draw_text_stroke(0, height, "(" + to_string(m_x) + "," + to_string(m_y) +
-        ")" + ss.str(), 0.2);
+        ")", 0.2);
     glutSwapBuffers();
 }
 
@@ -383,28 +379,38 @@ void mouse(int button, int state, int x, int y) {
         case GLUT_LEFT_BUTTON:
         if(state == GLUT_DOWN) {
             if(modo == FILL) {
+				cout << "?\n";
                 canTransformLast = false;
                 drawFormas(); // bug fix
                 cout << x << " " << y << endl;
-                auto initial = aux[x][y];
                 stack<pair<int, int>> q;
                 q.push({ x, y });
                 vector<int> dx = { 0,  0, -1, 1},
                             dy = { 1, -1,  0, 0};
                 vector<vector<bool>> visited(width, vector<bool>(height, false));
-                vector<pair<int, int>> tr;
+
+				GLubyte initial[3];
+				glReadPixels(x, y, 1, 1, GL_RGB, GL_UNSIGNED_BYTE, initial);
+
+				GLubyte* data = new GLubyte[width * height * 3];
+				glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, data);
                 while(!q.empty()) {
                     auto u = q.top(); q.pop();
                     visited[u.first][u.second] = true;
 
-                    auto pixel = aux[u.first][u.second], pixelTmp = tmp[u.first][u.second];
+                    // auto pixel = aux[u.first][u.second], pixelTmp = tmp[u.first][u.second];
+					int index = (u.second * width + u.first) * 3;
+					cout << "(" << (int) initial[0] << ", " << (int) initial[1] << ", " << (int) initial[2] << ") - ("
+					<< (int) data[index] << ", " << (int) data[index + 1] << ", " << (int) data[index + 2] << ")\n";
 
                     // o problema das cores pode ser resolvido adicionando comparações
                     // envolvendo a matriz auxiliar aqui
                     // if(pixelTmp[0] == initial[0] && pixelTmp[1] == initial[1] && pixelTmp[2] == initial[2])
                     //     points.PB({ u.first, u.second });
-                    if(pixel[0] == initial[0] && pixel[1] == initial[1] && pixel[2] == initial[2])
-                        points.PB({ u.first, u.second });
+                    if(data[index] == initial[0] && data[index + 1] == initial[1] && data[index + 2] == initial[2]) {
+                        drawPixel(u.first, u.second, true); // points.PB({ u.first, u.second });
+						glutPostRedisplay();
+					}
                     else continue;
 
                     for(int i = 0; i < dx.size(); i++) {
@@ -458,7 +464,7 @@ void mouse(int button, int state, int x, int y) {
                     case LIN:
                     pushLine(x_1, y_1, x_2, y_2);
                     break;
-                    case RECT:
+                    case REC:
                     pushRect(x_1, y_1, x_2, y_2);
                     break;
                     case CIR:
@@ -506,7 +512,11 @@ void mousePassiveMotion(int x, int y) {
  * Funcao para desenhar apenas um pixel na tela
  */
 void drawPixel(int x, int y, bool keep = true) {
-    if(x < 0 || y < 0 || x >= width || y >= height) return;
+    // if(x < 0 || y < 0 || x >= width || y >= height) return;
+	glBegin(GL_POINTS); // Seleciona a primitiva GL_POINTS para desenhar
+	glVertex2i(x, y);
+	glEnd();  // indica o fim do ponto
+	return;
     if(keep) {
         auto &p = aux[x][y];
         auto t = tmp[x][y];
@@ -640,7 +650,7 @@ void drawFormas() {
 
     if(click1) {
         switch(modo) {
-            case RECT:
+            case REC:
             bresenham(x_1, y_1, m_x, y_1, false);
             bresenham(m_x, y_1, m_x, m_y, false);
             bresenham(m_x, m_y, x_1, m_y, false);
@@ -690,14 +700,14 @@ void drawFormas() {
         }
     }
 
-    for(int i = 0; i < width; i++) {
-        for(int j = 0; j < height; j++) {
-            glColor3ub(aux[i][j][0], aux[i][j][1], aux[i][j][2]);
-            glBegin(GL_POINTS); // Seleciona a primitiva GL_POINTS para desenhar
-            glVertex2i(i, j);
-            glEnd();  // indica o fim do ponto
-        }
-    }
+    // for(int i = 0; i < width; i++) {
+    //     for(int j = 0; j < height; j++) {
+    //         glColor3ub(aux[i][j][0], aux[i][j][1], aux[i][j][2]);
+    //         glBegin(GL_POINTS); // Seleciona a primitiva GL_POINTS para desenhar
+    //         glVertex2i(i, j);
+    //         glEnd();  // indica o fim do ponto
+    //     }
+    // }
 
     if(canTransformLast) {
         auto f = forms[forms.size() - 1];
@@ -717,18 +727,18 @@ void drawFormas() {
         }
     }
 
-    for(int i = 0; i < width; i++) {
-        for(int j = 0; j < height; j++) {
-            auto pixel = tmp[i][j];
-            tmp[i][j][0] = tmp[i][j][1] = tmp[i][j][2] = 0xFF;
-            if(pixel[0] == pixel[1] && pixel[1] == pixel[2]
-                && pixel[2] == 0xFF) continue;
-            glColor3ub(pixel[0], pixel[1], pixel[2]);
-            glBegin(GL_POINTS); // Seleciona a primitiva GL_POINTS para desenhar
-            glVertex2i(i, j);
-            glEnd();  // indica o fim do ponto
-        }
-    }
+    // for(int i = 0; i < width; i++) {
+    //     for(int j = 0; j < height; j++) {
+    //         auto pixel = tmp[i][j];
+    //         tmp[i][j][0] = tmp[i][j][1] = tmp[i][j][2] = 0xFF;
+    //         if(pixel[0] == pixel[1] && pixel[1] == pixel[2]
+    //             && pixel[2] == 0xFF) continue;
+    //         glColor3ub(pixel[0], pixel[1], pixel[2]);
+    //         glBegin(GL_POINTS); // Seleciona a primitiva GL_POINTS para desenhar
+    //         glVertex2i(i, j);
+    //         glEnd();  // indica o fim do ponto
+    //     }
+    // }
     // for(forward_list<forma>::iterator f = formas.begin(); f != formas.end(); f++){
     //     switch (f->tipo) {
     //         case LIN:
