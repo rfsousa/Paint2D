@@ -18,7 +18,7 @@ Em um ambiente baseado em Arch Linux, basta instalar os pacotes `gcc` e
 
 Em seguida, basta clonar este repositório:
 
-`$ git clone https://github.com/rfsousa/Paint2D && cd Paint2D-main`
+`$ git clone https://github.com/rfsousa/Paint2D.git && cd Paint2D`
 
 Então, basta compilar o projeto:
 
