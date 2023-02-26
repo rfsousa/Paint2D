@@ -18,11 +18,11 @@ Em um ambiente baseado em Arch Linux, basta instalar os pacotes `gcc` e
 
 Em seguida, basta clonar este repositório:
 
-`git clone https://github.com/rfsousa/Paint2D && cd Paint2D-main`
+`$ git clone https://github.com/rfsousa/Paint2D && cd Paint2D-main`
 
 Então, basta compilar o projeto:
 
-`make`
+`$ make`
 
 Será criado um arquivo executável chamado `main` na pasta `bin`.
 
@@ -44,9 +44,16 @@ e y, respectivamente.
 - As teclas X e Y podem realizar transformação de cisalhamento.
 - A tecla M pode realizar reflexão, utilizando uma transformação de escala 
 (multiplicando uma das coordenadas por -1).
+- As transformações que dependem de uma translação para a origem funcionam 
+corretamente, já que é realizado o cálculo do centróide da figura utilizando 
+geometria analítica.
 - O uso da tecla shift é intuitivo e pode ser combinado com as teclas que 
 realizam transformações geométricas para realizar a transformação em um 
 sentido ou eixo diferente.
 - As setas do teclado permitem a translação da última figura.
 - Todas as transformações somente são possíveis com a última figura.
+- É possível limpar o desenho, destruindo as formas e preenchimentos com 
+a função "Limpar".
+- Houve a tentativa de evitar vazamentos de memória sempre que possível, 
+de forma a evitar problemas de desempenho.
 

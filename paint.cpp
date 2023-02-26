@@ -23,12 +23,6 @@
 #include <vector>
 #include <stack>
 #include <iostream>
-#include <sstream>
-#include <iomanip>
-#include <unistd.h>
-#include <array>
-#include <set>
-#include <algorithm>
 #include "glut_text.h"
 #include "matrix.hpp"
 
@@ -42,9 +36,6 @@ using namespace std;
 #define DOWN 103
 #define LEFT 100
 #define RIGHT 102
-#define PLUS 65
-#define MINUS 45
-#define ENTER 13
 
 enum form_type { LIN = 1, TRI, REC, POL, CIR, FILL };
 
