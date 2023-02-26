@@ -1,7 +1,8 @@
 # Paint 2D
 
 Esta aplicação busca atender as especificações do trabalho da disciplina
-de Computação Gráfica (DC/CCN032) da [Universidade Federal do Piauí](https://ufpi.br).
+de Computação Gráfica (DC/CCN032) do curso de Bacharelado em Ciência da 
+Computação da [Universidade Federal do Piauí](https://ufpi.br).
 
 O código original está disponível [aqui](https://github.com/rfsousa/Paint2D).
 
